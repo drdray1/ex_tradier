@@ -65,4 +65,16 @@ defmodule ExTradier.UserTest do
       assert {:ok, %{"gainloss" => _}} = User.get_gainloss(client, "VA000001")
     end
   end
+
+  describe "get_cost_basis/3" do
+    test "returns cost basis for symbol" do
+      Req.Test.expect(ExTradier.UserTest.CostBasis, fn conn ->
+        assert conn.request_path == "/v1/accounts/VA000001/costbasis"
+        Req.Test.json(conn, Fixtures.cost_basis_response())
+      end)
+
+      client = Fixtures.test_client(ExTradier.UserTest.CostBasis)
+      assert {:ok, %{"costbasis" => _}} = User.get_cost_basis(client, "VA000001", "AAPL")
+    end
+  end
 end

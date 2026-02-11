@@ -5,6 +5,43 @@ defmodule ExTradier.StreamingTest do
   alias ExTradier.Streaming.{QuoteEvent, TradeEvent, SummaryEvent, TimesaleEvent, Session}
   alias ExTradier.Fixtures
 
+  describe "create_market_session/2" do
+    test "creates a market streaming session" do
+      Req.Test.expect(ExTradier.StreamingTest.MarketSession, fn conn ->
+        assert conn.request_path == "/v1/markets/events/session"
+        assert conn.method == "POST"
+        Req.Test.json(conn, Fixtures.streaming_session_response())
+      end)
+
+      client = Fixtures.test_client(ExTradier.StreamingTest.MarketSession)
+
+      assert {:ok, %{"stream" => stream}} =
+               Streaming.create_market_session(client, %{
+                 symbols: ["AAPL"],
+                 filter: ["quote"]
+               })
+
+      assert stream["sessionid"] == "session-abc123def456"
+    end
+  end
+
+  describe "create_account_session/2" do
+    test "creates an account streaming session" do
+      Req.Test.expect(ExTradier.StreamingTest.AccountSession, fn conn ->
+        assert conn.request_path == "/v1/accounts/events/session"
+        assert conn.method == "POST"
+        Req.Test.json(conn, Fixtures.account_session_response())
+      end)
+
+      client = Fixtures.test_client(ExTradier.StreamingTest.AccountSession)
+
+      assert {:ok, %{"stream" => stream}} =
+               Streaming.create_account_session(client, "VA000001")
+
+      assert stream["sessionid"] == "account-session-xyz789"
+    end
+  end
+
   describe "create_session_from_response/1" do
     test "creates session from valid response" do
       response = Fixtures.streaming_session_response()
@@ -73,6 +110,89 @@ defmodule ExTradier.StreamingTest do
     end
   end
 
+  describe "parse_typed_event_from_map/1" do
+    test "parses quote map to QuoteEvent" do
+      assert {:ok, %QuoteEvent{symbol: "AAPL"}} =
+               Streaming.parse_typed_event_from_map(Fixtures.quote_event())
+    end
+
+    test "parses trade map to TradeEvent" do
+      assert {:ok, %TradeEvent{symbol: "AAPL"}} =
+               Streaming.parse_typed_event_from_map(Fixtures.trade_event())
+    end
+
+    test "parses summary map to SummaryEvent" do
+      assert {:ok, %SummaryEvent{symbol: "AAPL"}} =
+               Streaming.parse_typed_event_from_map(Fixtures.summary_event())
+    end
+
+    test "parses timesale map to TimesaleEvent" do
+      assert {:ok, %TimesaleEvent{symbol: "AAPL"}} =
+               Streaming.parse_typed_event_from_map(Fixtures.timesale_event())
+    end
+
+    test "returns error for unknown type" do
+      assert {:error, {:unknown_event_type, "foo"}} =
+               Streaming.parse_typed_event_from_map(%{"type" => "foo"})
+    end
+
+    test "returns error for missing type" do
+      assert {:error, :missing_type} = Streaming.parse_typed_event_from_map(%{"symbol" => "AAPL"})
+    end
+  end
+
+  describe "parse_quote_event/1" do
+    test "parses all fields" do
+      event = Streaming.parse_quote_event(Fixtures.quote_event())
+      assert %QuoteEvent{} = event
+      assert event.symbol == "AAPL"
+      assert event.bid == 150.20
+      assert event.bid_size == 2
+      assert event.bid_exchange == "Q"
+      assert event.ask == 150.30
+      assert event.ask_size == 3
+      assert event.ask_exchange == "P"
+    end
+  end
+
+  describe "parse_trade_event/1" do
+    test "parses all fields" do
+      event = Streaming.parse_trade_event(Fixtures.trade_event())
+      assert %TradeEvent{} = event
+      assert event.symbol == "AAPL"
+      assert event.price == 150.25
+      assert event.size == 100
+      assert event.exchange == "Q"
+      assert event.cvol == 45_123_456
+      assert event.last == 150.25
+    end
+  end
+
+  describe "parse_summary_event/1" do
+    test "parses all fields" do
+      event = Streaming.parse_summary_event(Fixtures.summary_event())
+      assert %SummaryEvent{} = event
+      assert event.symbol == "AAPL"
+      assert event.open == 149.50
+      assert event.high == 151.00
+      assert event.low == 149.25
+      assert event.prev_close == 149.00
+    end
+  end
+
+  describe "parse_timesale_event/1" do
+    test "parses all fields" do
+      event = Streaming.parse_timesale_event(Fixtures.timesale_event())
+      assert %TimesaleEvent{} = event
+      assert event.symbol == "AAPL"
+      assert event.exchange == "Q"
+      assert event.bid == 150.20
+      assert event.ask == 150.30
+      assert event.last == 150.25
+      assert event.size == 100
+    end
+  end
+
   describe "build_websocket_url/3" do
     test "builds market URL" do
       url = Streaming.build_websocket_url("abc123", :market)
@@ -96,6 +216,31 @@ defmodule ExTradier.StreamingTest do
       assert payload.symbols == ["AAPL", "MSFT"]
       assert payload.filter == ["quote", "trade"]
       assert payload.linebreak == true
+    end
+
+    test "includes session ID when provided" do
+      payload =
+        Streaming.build_subscription_payload(["AAPL"], ["quote"], "session-123")
+
+      assert payload.sessionid == "session-123"
+    end
+  end
+
+  describe "encode_subscription_payload/3" do
+    test "returns JSON-encoded payload" do
+      assert {:ok, json} = Streaming.encode_subscription_payload(["AAPL"], ["quote"])
+      decoded = Jason.decode!(json)
+      assert decoded["symbols"] == ["AAPL"]
+      assert decoded["filter"] == ["quote"]
+      assert decoded["linebreak"] == true
+    end
+
+    test "includes session ID in encoded payload" do
+      assert {:ok, json} =
+               Streaming.encode_subscription_payload(["AAPL"], ["quote"], "sess-abc")
+
+      decoded = Jason.decode!(json)
+      assert decoded["sessionid"] == "sess-abc"
     end
   end
 
@@ -146,6 +291,72 @@ defmodule ExTradier.StreamingTest do
       }
 
       assert Streaming.time_until_expiry(session) == 0
+    end
+
+    test "returns 0 for non-session" do
+      assert Streaming.time_until_expiry(nil) == 0
+    end
+  end
+
+  describe "session_expiry_ms/0" do
+    test "returns 5 minutes in milliseconds" do
+      assert Streaming.session_expiry_ms() == 300_000
+    end
+  end
+
+  describe "validate_session/1" do
+    test "returns ok for valid session" do
+      session = %Session{
+        session_id: "abc",
+        url: "wss://example.com",
+        created_at: DateTime.utc_now()
+      }
+
+      assert {:ok, :valid} = Streaming.validate_session(session)
+    end
+
+    test "returns error for expired session" do
+      session = %Session{
+        session_id: "abc",
+        url: "wss://example.com",
+        created_at: DateTime.add(DateTime.utc_now(), -10, :minute)
+      }
+
+      assert {:error, :expired} = Streaming.validate_session(session)
+    end
+
+    test "returns error for invalid input" do
+      assert {:error, :invalid_session} = Streaming.validate_session("not a session")
+    end
+  end
+
+  describe "validate_session/2" do
+    test "returns ok tuple with session info" do
+      assert {:ok, %{"session" => %{"id" => "abc", "active" => true}}} =
+               Streaming.validate_session(nil, "abc")
+    end
+  end
+
+  describe "create_market_session/2 with param coercion" do
+    test "handles non-list symbols" do
+      Req.Test.expect(ExTradier.StreamingTest.MarketSessionStr, fn conn ->
+        assert conn.request_path == "/v1/markets/events/session"
+        Req.Test.json(conn, Fixtures.streaming_session_response())
+      end)
+
+      client = Fixtures.test_client(ExTradier.StreamingTest.MarketSessionStr)
+
+      assert {:ok, _} =
+               Streaming.create_market_session(client, %{symbols: "AAPL", filter: "quote"})
+    end
+
+    test "handles no params" do
+      Req.Test.expect(ExTradier.StreamingTest.MarketSessionEmpty, fn conn ->
+        Req.Test.json(conn, Fixtures.streaming_session_response())
+      end)
+
+      client = Fixtures.test_client(ExTradier.StreamingTest.MarketSessionEmpty)
+      assert {:ok, _} = Streaming.create_market_session(client)
     end
   end
 end
