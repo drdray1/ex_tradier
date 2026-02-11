@@ -13,11 +13,16 @@ defmodule ExTradier.AuthTest do
   end
 
   test "does not attach header when no token provided" do
+    Req.Test.expect(ExTradier.AuthTest.NilToken, fn conn ->
+      auth_header = Plug.Conn.get_req_header(conn, "authorization")
+      assert auth_header == []
+      Req.Test.json(conn, %{"ok" => true})
+    end)
+
     request =
-      Req.new(base_url: "https://example.com")
+      Req.new(base_url: "https://example.com", plug: {Req.Test, ExTradier.AuthTest.NilToken})
       |> ExTradier.Auth.attach(nil)
 
-    # The auth step should be registered but not crash
-    assert %Req.Request{} = request
+    {:ok, %Req.Response{status: 200}} = Req.get(request, url: "/test")
   end
 end

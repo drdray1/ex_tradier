@@ -17,6 +17,15 @@ defmodule ExTradier.MixProject do
       description: "Elixir client for the Tradier brokerage API",
       package: package(),
 
+      # Test coverage
+      test_coverage: [
+        ignore_modules: [
+          ExTradier.Streaming.Client,
+          ExTradier.Streaming.Client.State,
+          ExTradier.Application
+        ]
+      ],
+
       # Docs
       name: "ExTradier",
       source_url: @source_url,

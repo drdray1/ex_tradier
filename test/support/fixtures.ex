@@ -478,4 +478,109 @@ defmodule ExTradier.Fixtures do
       "date" => "1705084800000"
     }
   end
+
+  # ============================================================================
+  # Cost basis responses
+  # ============================================================================
+
+  def cost_basis_response do
+    %{
+      "costbasis" => %{
+        "positions" => %{
+          "position" => [
+            %{
+              "symbol" => "AAPL",
+              "quantity" => 100.0,
+              "cost" => 15_025.00
+            }
+          ]
+        }
+      }
+    }
+  end
+
+  # ============================================================================
+  # Option lookup/greeks responses
+  # ============================================================================
+
+  def option_lookup_response do
+    %{
+      "symbols" => [
+        %{
+          "rootSymbol" => "AAPL",
+          "options" => [
+            "AAPL240119C00150000",
+            "AAPL240119P00150000"
+          ]
+        }
+      ]
+    }
+  end
+
+  def option_greeks_response do
+    %{
+      "options" => %{
+        "option" => [
+          %{
+            "symbol" => "AAPL240119C00150000",
+            "greeks" => %{
+              "delta" => 0.55,
+              "gamma" => 0.03,
+              "theta" => -0.05,
+              "vega" => 0.25,
+              "rho" => 0.01,
+              "mid_iv" => 0.28
+            }
+          }
+        ]
+      }
+    }
+  end
+
+  # ============================================================================
+  # Symbol search/lookup responses
+  # ============================================================================
+
+  def search_response do
+    %{
+      "securities" => %{
+        "security" => [
+          %{
+            "symbol" => "AAPL",
+            "exchange" => "Q",
+            "type" => "stock",
+            "description" => "Apple Inc"
+          }
+        ]
+      }
+    }
+  end
+
+  def lookup_response do
+    %{
+      "securities" => %{
+        "security" => %{
+          "symbol" => "AAPL",
+          "exchange" => "Q",
+          "type" => "stock",
+          "description" => "Apple Inc"
+        }
+      }
+    }
+  end
+
+  # ============================================================================
+  # ETB list response
+  # ============================================================================
+
+  def etb_response do
+    %{
+      "securities" => %{
+        "security" => [
+          %{"symbol" => "AAPL", "exchange" => "Q", "type" => "stock"},
+          %{"symbol" => "MSFT", "exchange" => "Q", "type" => "stock"}
+        ]
+      }
+    }
+  end
 end
