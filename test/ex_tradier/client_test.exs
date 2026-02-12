@@ -418,7 +418,10 @@ defmodule ExTradier.ClientTest do
 
   describe "handle_response/1 with nested body" do
     test "returns body as-is for successful response" do
-      response = {:ok, %Req.Response{status: 200, body: %{"quotes" => %{"quote" => %{"symbol" => "AAPL"}}}}}
+      response =
+        {:ok,
+         %Req.Response{status: 200, body: %{"quotes" => %{"quote" => %{"symbol" => "AAPL"}}}}}
+
       assert {:ok, %{"quotes" => _}} = Client.handle_response(response)
     end
   end

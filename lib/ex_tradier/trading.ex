@@ -18,6 +18,11 @@ defmodule ExTradier.Trading do
   @doc """
   Place an equity order.
 
+  ## Parameters
+
+  All standard order params, plus:
+    - `:tag` - Optional user-defined order tag (max 255 chars)
+
   ## Examples
 
       iex> place_equity_order(client, "VA000001", %{
@@ -201,6 +206,7 @@ defmodule ExTradier.Trading do
       |> validate_duration(params)
       |> validate_price_for_limit_orders(params)
       |> validate_stop_for_stop_orders(params)
+      |> validate_tag(params)
 
     if Enum.empty?(errors) do
       {:ok, params}
@@ -228,6 +234,7 @@ defmodule ExTradier.Trading do
       |> validate_duration(params)
       |> validate_price_for_limit_orders(params)
       |> validate_stop_for_stop_orders(params)
+      |> validate_tag(params)
 
     if Enum.empty?(errors) do
       {:ok, params}
@@ -257,6 +264,7 @@ defmodule ExTradier.Trading do
       |> validate_duration(params)
       |> validate_price_for_limit_orders(params)
       |> validate_stop_for_stop_orders(params)
+      |> validate_tag(params)
 
     if Enum.empty?(errors) do
       {:ok, params}
@@ -281,6 +289,7 @@ defmodule ExTradier.Trading do
       |> validate_order_type(params)
       |> validate_duration(params)
       |> validate_price_for_limit_orders(params)
+      |> validate_tag(params)
 
     if Enum.empty?(errors) do
       {:ok, params}
@@ -290,6 +299,44 @@ defmodule ExTradier.Trading do
   end
 
   def validate_multileg_order(_), do: {:error, ["params must be a map"]}
+
+  @doc """
+  Validates OCO (One-Cancels-Other) order parameters.
+
+  OCO orders require two legs with different order types.
+  """
+  def validate_oco_order(params) when is_map(params) do
+    errors = validate_oco_different_types([], params)
+
+    if Enum.empty?(errors) do
+      {:ok, params}
+    else
+      {:error, Enum.reverse(errors)}
+    end
+  end
+
+  def validate_oco_order(_), do: {:error, ["params must be a map"]}
+
+  @doc """
+  Validates OTOCO (One-Triggers-OCO) order parameters.
+
+  OTOCO orders require legs 2 and 3 to share the same symbol
+  and have different order types.
+  """
+  def validate_otoco_order(params) when is_map(params) do
+    errors =
+      []
+      |> validate_otoco_matching_symbols(params)
+      |> validate_otoco_different_types(params)
+
+    if Enum.empty?(errors) do
+      {:ok, params}
+    else
+      {:error, Enum.reverse(errors)}
+    end
+  end
+
+  def validate_otoco_order(_), do: {:error, ["params must be a map"]}
 
   # ============================================================================
   # Validation Helpers
@@ -385,6 +432,17 @@ defmodule ExTradier.Trading do
     end
   end
 
+  defp validate_tag(errors, params) do
+    tag = get_field(params, :tag)
+
+    cond do
+      is_nil(tag) -> errors
+      not is_binary(tag) -> ["tag must be a string" | errors]
+      String.length(tag) > 255 -> ["tag must be 255 characters or fewer" | errors]
+      true -> errors
+    end
+  end
+
   defp validate_option_symbol_format(errors, params) do
     option_symbol = get_field(params, :option_symbol) |> to_string()
 
@@ -472,6 +530,45 @@ defmodule ExTradier.Trading do
 
   defp get_field(params, field) when is_atom(field) do
     Map.get(params, field) || Map.get(params, Atom.to_string(field))
+  end
+
+  defp get_indexed_field(params, field, index) do
+    key_str = "#{field}[#{index}]"
+    key_atom = String.to_atom(key_str)
+    Map.get(params, key_str) || Map.get(params, key_atom)
+  end
+
+  defp validate_oco_different_types(errors, params) do
+    type_0 = get_indexed_field(params, "type", 0)
+    type_1 = get_indexed_field(params, "type", 1)
+
+    if type_0 && type_1 && to_string(type_0) == to_string(type_1) do
+      ["OCO legs must have different order types" | errors]
+    else
+      errors
+    end
+  end
+
+  defp validate_otoco_matching_symbols(errors, params) do
+    symbol_1 = get_indexed_field(params, "symbol", 1)
+    symbol_2 = get_indexed_field(params, "symbol", 2)
+
+    if symbol_1 && symbol_2 && to_string(symbol_1) != to_string(symbol_2) do
+      ["OTOCO legs 2 and 3 must have the same symbol" | errors]
+    else
+      errors
+    end
+  end
+
+  defp validate_otoco_different_types(errors, params) do
+    type_1 = get_indexed_field(params, "type", 1)
+    type_2 = get_indexed_field(params, "type", 2)
+
+    if type_1 && type_2 && to_string(type_1) == to_string(type_2) do
+      ["OTOCO legs 2 and 3 must have different order types" | errors]
+    else
+      errors
+    end
   end
 
   # ============================================================================

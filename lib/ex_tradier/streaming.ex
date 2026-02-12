@@ -14,7 +14,7 @@ defmodule ExTradier.Streaming do
   # Session expiry time in milliseconds (5 minutes)
   @session_expiry_ms 5 * 60 * 1000
 
-  @type event_type :: :quote | :trade | :summary | :timesale
+  @type event_type :: :quote | :trade | :summary | :timesale | :tradex
 
   # Typed event structs
   defmodule QuoteEvent do
@@ -87,6 +87,44 @@ defmodule ExTradier.Streaming do
           }
   end
 
+  defmodule TradexEvent do
+    @moduledoc "Parsed tradex (extended trade) event from streaming API"
+
+    defstruct [
+      :symbol,
+      :price,
+      :size,
+      :exchange,
+      :cvol,
+      :date,
+      :last,
+      :open,
+      :high,
+      :low,
+      :close,
+      :prev_close,
+      :volume,
+      :vwap
+    ]
+
+    @type t :: %__MODULE__{
+            symbol: String.t(),
+            price: float() | nil,
+            size: integer() | nil,
+            exchange: String.t() | nil,
+            cvol: integer() | nil,
+            date: integer() | nil,
+            last: float() | nil,
+            open: float() | nil,
+            high: float() | nil,
+            low: float() | nil,
+            close: float() | nil,
+            prev_close: float() | nil,
+            volume: integer() | nil,
+            vwap: float() | nil
+          }
+  end
+
   defmodule Session do
     @moduledoc "Represents a streaming session with timestamp tracking"
     defstruct [:session_id, :url, :created_at]
@@ -100,6 +138,13 @@ defmodule ExTradier.Streaming do
 
   @doc """
   Create a streaming market data session.
+
+  ## Parameters
+
+    - `:symbols` - List of symbols or comma-separated string
+    - `:filter` - List of event types or comma-separated string (e.g., ["quote", "trade"])
+    - `:validOnly` - When true, only stream valid/regular trades
+    - `:advancedDetails` - When true, include extended data fields
   """
   def create_market_session(client, params \\ %{}) do
     params =
@@ -129,11 +174,19 @@ defmodule ExTradier.Streaming do
   @doc """
   Create a streaming account events session.
 
+  ## Parameters
+
+    - `account_id` - Kept for API compatibility (not used in request path)
+    - `params` - Optional map with additional parameters:
+      - `:excludeAccounts` - Comma-separated account IDs to exclude from stream
+
   Note: The account_id parameter is kept for API compatibility but is not used
   in the request path.
   """
-  def create_account_session(client, _account_id) do
-    Req.post(client, url: "/accounts/events/session", form: [])
+  def create_account_session(client, _account_id, params \\ %{}) do
+    form_params = Enum.map(params, fn {k, v} -> {to_string(k), to_string(v)} end)
+
+    Req.post(client, url: "/accounts/events/session", form: form_params)
     |> Client.handle_response()
   end
 
@@ -188,6 +241,10 @@ defmodule ExTradier.Streaming do
 
   def parse_typed_event_from_map(%{"type" => "timesale"} = data) do
     {:ok, parse_timesale_event(data)}
+  end
+
+  def parse_typed_event_from_map(%{"type" => "tradex"} = data) do
+    {:ok, parse_tradex_event(data)}
   end
 
   def parse_typed_event_from_map(%{"type" => type}) do
@@ -258,6 +315,28 @@ defmodule ExTradier.Streaming do
     }
   end
 
+  @doc """
+  Parses a tradex (extended trade) event from a decoded JSON map.
+  """
+  def parse_tradex_event(data) when is_map(data) do
+    %TradexEvent{
+      symbol: data["symbol"],
+      price: parse_float(data["price"]),
+      size: parse_int(data["size"]),
+      exchange: data["exch"],
+      cvol: parse_int(data["cvol"]),
+      date: parse_int(data["date"]),
+      last: parse_float(data["last"]),
+      open: parse_float(data["open"]),
+      high: parse_float(data["high"]),
+      low: parse_float(data["low"]),
+      close: parse_float(data["close"]),
+      prev_close: parse_float(data["prevClose"]),
+      volume: parse_int(data["volume"]),
+      vwap: parse_float(data["vwap"])
+    }
+  end
+
   defp parse_float(nil), do: nil
   defp parse_float(value) when is_float(value), do: value
   defp parse_float(value) when is_integer(value), do: value / 1
@@ -307,15 +386,27 @@ defmodule ExTradier.Streaming do
 
   @doc """
   Builds the subscription payload to send over WebSocket.
+
+  ## Options (4th argument)
+
+    - `:valid_only` - When true, only stream valid/regular trades
+    - `:advanced_details` - When true, include extended data fields
   """
-  def build_subscription_payload(symbols, filters, session_id \\ nil) when is_list(symbols) do
+  def build_subscription_payload(symbols, filters, session_id \\ nil, opts \\ [])
+
+  def build_subscription_payload(symbols, filters, session_id, opts) when is_list(symbols) do
     %{
       symbols: symbols,
       filter: filters,
       sessionid: session_id,
       linebreak: true
     }
+    |> maybe_put(:validOnly, Keyword.get(opts, :valid_only))
+    |> maybe_put(:advancedDetails, Keyword.get(opts, :advanced_details))
   end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   @doc """
   Encodes a subscription payload to JSON for sending over WebSocket.

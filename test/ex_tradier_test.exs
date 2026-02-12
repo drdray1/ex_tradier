@@ -231,6 +231,22 @@ defmodule ExTradierTest do
     end
   end
 
+  describe "delegate: get_historical_balances/3" do
+    test "delegates to User.get_historical_balances" do
+      Req.Test.expect(ExTradierTest.FacadeHistBalances, fn conn ->
+        assert conn.request_path == "/v1/accounts/VA000001/balances/historical"
+        Req.Test.json(conn, Fixtures.historical_balances_response())
+      end)
+
+      client = Fixtures.test_client(ExTradierTest.FacadeHistBalances)
+
+      assert {:ok, %{"balances" => balances}} =
+               ExTradier.get_historical_balances(client, "VA000001")
+
+      assert is_list(balances)
+    end
+  end
+
   describe "delegate: get_positions/2" do
     test "delegates to User.get_positions" do
       Req.Test.expect(ExTradierTest.FacadePositions, fn conn ->
@@ -482,6 +498,61 @@ defmodule ExTradierTest do
     end
   end
 
+  describe "delegate: get_position_groups/2" do
+    test "delegates to Positions" do
+      Req.Test.expect(ExTradierTest.FacadePositionGroups, fn conn ->
+        assert conn.request_path == "/v1/accounts/VA000001/position_groups"
+        Req.Test.json(conn, Fixtures.position_groups_response())
+      end)
+
+      client = Fixtures.test_client(ExTradierTest.FacadePositionGroups)
+      assert {:ok, %{"position_groups" => _}} = ExTradier.get_position_groups(client, "VA000001")
+    end
+  end
+
+  describe "delegate: create_position_group/3" do
+    test "delegates to Positions" do
+      Req.Test.expect(ExTradierTest.FacadeCreatePG, fn conn ->
+        assert conn.request_path == "/v1/accounts/VA000001/position_groups"
+        assert conn.method == "POST"
+        Req.Test.json(conn, Fixtures.position_group_created_response())
+      end)
+
+      client = Fixtures.test_client(ExTradierTest.FacadeCreatePG)
+
+      assert {:ok, %{"position_group" => _}} =
+               ExTradier.create_position_group(client, "VA000001", %{name: "Test"})
+    end
+  end
+
+  describe "delegate: update_position_group/4" do
+    test "delegates to Positions" do
+      Req.Test.expect(ExTradierTest.FacadeUpdatePG, fn conn ->
+        assert conn.request_path == "/v1/accounts/VA000001/position_groups/pg-123"
+        assert conn.method == "PUT"
+        Req.Test.json(conn, Fixtures.position_group_updated_response())
+      end)
+
+      client = Fixtures.test_client(ExTradierTest.FacadeUpdatePG)
+
+      assert {:ok, %{"position_group" => _}} =
+               ExTradier.update_position_group(client, "VA000001", "pg-123", %{name: "Updated"})
+    end
+  end
+
+  describe "delegate: delete_position_group/3" do
+    test "delegates to Positions" do
+      Req.Test.expect(ExTradierTest.FacadeDeletePG, fn conn ->
+        assert conn.request_path == "/v1/accounts/VA000001/position_groups/pg-123"
+        assert conn.method == "DELETE"
+        Req.Test.json(conn, Fixtures.position_group_deleted_response())
+      end)
+
+      client = Fixtures.test_client(ExTradierTest.FacadeDeletePG)
+      assert {:ok, _} = ExTradier.delete_position_group(client, "VA000001", "pg-123")
+    end
+  end
+
   describe "delegate: get_watchlists/1" do
     test "delegates to Watchlist" do
       Req.Test.expect(ExTradierTest.FacadeWatchlists, fn conn ->
@@ -550,6 +621,26 @@ defmodule ExTradierTest do
       }
 
       assert {:ok, _} = ExTradier.validate_multileg_order(params)
+    end
+  end
+
+  describe "delegate: validate_oco_order/1" do
+    test "delegates to Trading" do
+      params = %{"type[0]" => "limit", "type[1]" => "stop"}
+      assert {:ok, _} = ExTradier.validate_oco_order(params)
+    end
+  end
+
+  describe "delegate: validate_otoco_order/1" do
+    test "delegates to Trading" do
+      params = %{
+        "symbol[1]" => "AAPL",
+        "symbol[2]" => "AAPL",
+        "type[1]" => "limit",
+        "type[2]" => "stop"
+      }
+
+      assert {:ok, _} = ExTradier.validate_otoco_order(params)
     end
   end
 

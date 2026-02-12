@@ -92,6 +92,22 @@ defmodule ExTradier.Fixtures do
   end
 
   # ============================================================================
+  # Historical balance responses
+  # ============================================================================
+
+  def historical_balances_response do
+    %{
+      "balances" => [
+        %{"date" => "2025-07-15", "value" => 113_302.40},
+        %{"date" => "2025-07-14", "value" => 112_500.00},
+        %{"date" => "2025-07-11", "value" => 110_521.74}
+      ],
+      "delta" => 2780.66,
+      "deltaPercent" => 2.45
+    }
+  end
+
+  # ============================================================================
   # Position responses
   # ============================================================================
 
@@ -402,6 +418,51 @@ defmodule ExTradier.Fixtures do
   end
 
   # ============================================================================
+  # Position group responses
+  # ============================================================================
+
+  def position_groups_response do
+    %{
+      "position_groups" => [
+        %{
+          "id" => "pg-123",
+          "name" => "Tech Holdings",
+          "positions" => ["AAPL", "MSFT", "GOOG"]
+        },
+        %{
+          "id" => "pg-456",
+          "name" => "Dividend Portfolio",
+          "positions" => ["KO", "JNJ", "PG"]
+        }
+      ]
+    }
+  end
+
+  def position_group_created_response do
+    %{
+      "position_group" => %{
+        "id" => "pg-789",
+        "name" => "New Group",
+        "positions" => ["AAPL"]
+      }
+    }
+  end
+
+  def position_group_updated_response do
+    %{
+      "position_group" => %{
+        "id" => "pg-123",
+        "name" => "Updated Group",
+        "positions" => ["AAPL", "MSFT"]
+      }
+    }
+  end
+
+  def position_group_deleted_response do
+    %{"position_groups" => %{}}
+  end
+
+  # ============================================================================
   # Streaming session responses
   # ============================================================================
 
@@ -476,6 +537,26 @@ defmodule ExTradier.Fixtures do
       "last" => "150.25",
       "size" => "100",
       "date" => "1705084800000"
+    }
+  end
+
+  def tradex_event do
+    %{
+      "type" => "tradex",
+      "symbol" => "AAPL",
+      "price" => "150.25",
+      "size" => "100",
+      "exch" => "Q",
+      "cvol" => "45123456",
+      "date" => "1705084800000",
+      "last" => "150.25",
+      "open" => "149.50",
+      "high" => "151.00",
+      "low" => "149.25",
+      "close" => "150.25",
+      "prevClose" => "149.00",
+      "volume" => "45123456",
+      "vwap" => "150.10"
     }
   end
 
