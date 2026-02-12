@@ -193,6 +193,38 @@ defmodule ExTradier.StreamingTest do
     end
   end
 
+  describe "parse_tradex_event/1" do
+    test "parses all fields" do
+      event = Streaming.parse_tradex_event(Fixtures.tradex_event())
+      assert %Streaming.TradexEvent{} = event
+      assert event.symbol == "AAPL"
+      assert event.price == 150.25
+      assert event.size == 100
+      assert event.exchange == "Q"
+      assert event.cvol == 45_123_456
+      assert event.last == 150.25
+      assert event.open == 149.50
+      assert event.high == 151.00
+      assert event.low == 149.25
+      assert event.close == 150.25
+      assert event.prev_close == 149.00
+      assert event.volume == 45_123_456
+      assert event.vwap == 150.10
+    end
+  end
+
+  describe "parse_typed_event tradex" do
+    test "parses tradex from JSON string" do
+      json = Jason.encode!(Fixtures.tradex_event())
+      assert {:ok, %Streaming.TradexEvent{symbol: "AAPL"}} = Streaming.parse_typed_event(json)
+    end
+
+    test "parses tradex from map" do
+      assert {:ok, %Streaming.TradexEvent{symbol: "AAPL"}} =
+               Streaming.parse_typed_event_from_map(Fixtures.tradex_event())
+    end
+  end
+
   describe "build_websocket_url/3" do
     test "builds market URL" do
       url = Streaming.build_websocket_url("abc123", :market)
@@ -223,6 +255,28 @@ defmodule ExTradier.StreamingTest do
         Streaming.build_subscription_payload(["AAPL"], ["quote"], "session-123")
 
       assert payload.sessionid == "session-123"
+    end
+  end
+
+  describe "build_subscription_payload/4 with opts" do
+    test "includes validOnly when valid_only option is set" do
+      payload =
+        Streaming.build_subscription_payload(["AAPL"], ["quote"], nil, valid_only: true)
+
+      assert payload.validOnly == true
+    end
+
+    test "includes advancedDetails when advanced_details option is set" do
+      payload =
+        Streaming.build_subscription_payload(["AAPL"], ["quote"], nil, advanced_details: true)
+
+      assert payload.advancedDetails == true
+    end
+
+    test "omits optional fields when not provided" do
+      payload = Streaming.build_subscription_payload(["AAPL"], ["quote"], nil, [])
+      refute Map.has_key?(payload, :validOnly)
+      refute Map.has_key?(payload, :advancedDetails)
     end
   end
 

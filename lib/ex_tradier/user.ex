@@ -32,6 +32,29 @@ defmodule ExTradier.User do
   end
 
   @doc """
+  Get historical balance data for an account.
+
+  ## Options
+
+    - `:period` - Time period: "WEEK", "MONTH", "YTD", "YEAR", "YEAR_3", "YEAR_5", "ALL"
+
+  ## Examples
+
+      iex> get_historical_balances(client, "VA000001")
+      {:ok, %{"balances" => [%{"date" => "2025-07-15", "value" => 113302.4}], ...}}
+
+      iex> get_historical_balances(client, "VA000001", %{period: "MONTH"})
+      {:ok, %{"balances" => [...]}}
+  """
+  def get_historical_balances(client, account_id, params \\ %{}) do
+    Req.get(client,
+      url: "/accounts/#{account_id}/balances/historical",
+      params: Map.to_list(params)
+    )
+    |> Client.handle_response()
+  end
+
+  @doc """
   Get account positions.
 
   ## Examples

@@ -604,4 +604,121 @@ defmodule ExTradier.TradingTest do
       assert Enum.any?(errors, &String.contains?(&1, "side must be one of"))
     end
   end
+
+  describe "validate_oco_order/1" do
+    test "accepts OCO with different order types" do
+      params = %{"type[0]" => "limit", "type[1]" => "stop"}
+      assert {:ok, _} = Trading.validate_oco_order(params)
+    end
+
+    test "rejects OCO with same order types" do
+      params = %{"type[0]" => "limit", "type[1]" => "limit"}
+      assert {:error, errors} = Trading.validate_oco_order(params)
+      assert "OCO legs must have different order types" in errors
+    end
+
+    test "accepts OCO when types are not both specified" do
+      params = %{"type[0]" => "limit"}
+      assert {:ok, _} = Trading.validate_oco_order(params)
+    end
+
+    test "rejects non-map params" do
+      assert {:error, ["params must be a map"]} = Trading.validate_oco_order("invalid")
+    end
+  end
+
+  describe "validate_otoco_order/1" do
+    test "accepts OTOCO with matching symbols and different types" do
+      params = %{
+        "symbol[1]" => "AAPL",
+        "symbol[2]" => "AAPL",
+        "type[1]" => "limit",
+        "type[2]" => "stop"
+      }
+
+      assert {:ok, _} = Trading.validate_otoco_order(params)
+    end
+
+    test "rejects OTOCO with mismatched symbols on legs 2 and 3" do
+      params = %{"symbol[1]" => "AAPL", "symbol[2]" => "MSFT"}
+      assert {:error, errors} = Trading.validate_otoco_order(params)
+      assert "OTOCO legs 2 and 3 must have the same symbol" in errors
+    end
+
+    test "rejects OTOCO with same order types on legs 2 and 3" do
+      params = %{
+        "symbol[1]" => "AAPL",
+        "symbol[2]" => "AAPL",
+        "type[1]" => "limit",
+        "type[2]" => "limit"
+      }
+
+      assert {:error, errors} = Trading.validate_otoco_order(params)
+      assert "OTOCO legs 2 and 3 must have different order types" in errors
+    end
+
+    test "accepts OTOCO when optional fields are absent" do
+      params = %{}
+      assert {:ok, _} = Trading.validate_otoco_order(params)
+    end
+
+    test "rejects non-map params" do
+      assert {:error, ["params must be a map"]} = Trading.validate_otoco_order("invalid")
+    end
+  end
+
+  describe "tag validation" do
+    test "accepts valid tag in order params" do
+      params = %{
+        symbol: "AAPL",
+        side: "buy",
+        quantity: 100,
+        type: "market",
+        duration: "day",
+        tag: "my-custom-tag"
+      }
+
+      assert {:ok, _} = Trading.validate_order_params(params)
+    end
+
+    test "accepts order without tag" do
+      params = %{
+        symbol: "AAPL",
+        side: "buy",
+        quantity: 100,
+        type: "market",
+        duration: "day"
+      }
+
+      assert {:ok, _} = Trading.validate_order_params(params)
+    end
+
+    test "rejects non-string tag" do
+      params = %{
+        symbol: "AAPL",
+        side: "buy",
+        quantity: 100,
+        type: "market",
+        duration: "day",
+        tag: 123
+      }
+
+      assert {:error, errors} = Trading.validate_order_params(params)
+      assert "tag must be a string" in errors
+    end
+
+    test "rejects tag longer than 255 characters" do
+      params = %{
+        symbol: "AAPL",
+        side: "buy",
+        quantity: 100,
+        type: "market",
+        duration: "day",
+        tag: String.duplicate("a", 256)
+      }
+
+      assert {:error, errors} = Trading.validate_order_params(params)
+      assert "tag must be 255 characters or fewer" in errors
+    end
+  end
 end

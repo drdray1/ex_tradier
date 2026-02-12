@@ -29,6 +29,36 @@ defmodule ExTradier.UserTest do
     end
   end
 
+  describe "get_historical_balances/3" do
+    test "returns historical balance data" do
+      Req.Test.expect(ExTradier.UserTest.HistoricalBalances, fn conn ->
+        assert conn.request_path == "/v1/accounts/VA000001/balances/historical"
+        Req.Test.json(conn, Fixtures.historical_balances_response())
+      end)
+
+      client = Fixtures.test_client(ExTradier.UserTest.HistoricalBalances)
+
+      assert {:ok, %{"balances" => balances}} =
+               User.get_historical_balances(client, "VA000001")
+
+      assert is_list(balances)
+      assert length(balances) == 3
+    end
+
+    test "accepts period parameter" do
+      Req.Test.expect(ExTradier.UserTest.HistoricalBalancesPeriod, fn conn ->
+        assert conn.request_path == "/v1/accounts/VA000001/balances/historical"
+        assert conn.query_string =~ "period=MONTH"
+        Req.Test.json(conn, Fixtures.historical_balances_response())
+      end)
+
+      client = Fixtures.test_client(ExTradier.UserTest.HistoricalBalancesPeriod)
+
+      assert {:ok, _} =
+               User.get_historical_balances(client, "VA000001", %{period: "MONTH"})
+    end
+  end
+
   describe "get_positions/2" do
     test "returns account positions" do
       Req.Test.expect(ExTradier.UserTest.Positions, fn conn ->

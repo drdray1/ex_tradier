@@ -96,6 +96,20 @@ defmodule ExTradier.Client do
   end
 
   @doc """
+  Returns the HTTP streaming base URL.
+  """
+  @spec stream_url(boolean()) :: String.t()
+  def stream_url(sandbox \\ false) do
+    config = Application.get_env(:ex_tradier, :config, [])
+
+    if sandbox do
+      Keyword.get(config, :sandbox_stream_url, "https://sandbox.tradier.com/v1")
+    else
+      Keyword.get(config, :stream_url, "https://stream.tradier.com/v1")
+    end
+  end
+
+  @doc """
   Validates the API token by making a test request.
   """
   @spec validate_token(client()) :: {:ok, :valid} | {:error, term()}

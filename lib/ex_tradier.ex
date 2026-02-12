@@ -35,13 +35,14 @@ defmodule ExTradier do
   alias ExTradier.{
     Client,
     MarketData,
+    Positions,
     Streaming,
     Trading,
     User,
     Watchlist
   }
 
-  alias ExTradier.Streaming.{AccountConnection, MarketConnection}
+  alias ExTradier.Streaming.{AccountConnection, HttpConnection, MarketConnection}
 
   # ========================================
   # Client
@@ -75,6 +76,9 @@ defmodule ExTradier do
 
   @doc "Get account balances."
   defdelegate get_balances(client, account_id), to: User
+
+  @doc "Get historical balance data for an account."
+  defdelegate get_historical_balances(client, account_id, params \\ %{}), to: User
 
   @doc "Get account positions."
   defdelegate get_positions(client, account_id), to: User
@@ -230,6 +234,9 @@ defmodule ExTradier do
   @doc "Starts a managed account events streaming connection."
   defdelegate start_account_stream(opts), to: AccountConnection, as: :start_link
 
+  @doc "Starts a managed HTTP streaming connection (alternative to WebSocket)."
+  defdelegate start_http_market_stream(opts), to: HttpConnection, as: :start_link
+
   @doc "Subscribes to symbols on a market stream connection."
   defdelegate stream_subscribe(server, symbols), to: MarketConnection, as: :subscribe
 
@@ -282,6 +289,12 @@ defmodule ExTradier do
   @doc "Validates multi-leg order parameters."
   defdelegate validate_multileg_order(params), to: Trading
 
+  @doc "Validates OCO (One-Cancels-Other) order parameters."
+  defdelegate validate_oco_order(params), to: Trading
+
+  @doc "Validates OTOCO (One-Triggers-OCO) order parameters."
+  defdelegate validate_otoco_order(params), to: Trading
+
   @doc "Returns list of valid equity order sides."
   defdelegate valid_equity_sides(), to: Trading
 
@@ -293,6 +306,22 @@ defmodule ExTradier do
 
   @doc "Returns list of valid order durations."
   defdelegate valid_durations(), to: Trading
+
+  # ========================================
+  # Position Groups API
+  # ========================================
+
+  @doc "Get all position groups for an account."
+  defdelegate get_position_groups(client, account_id), to: Positions
+
+  @doc "Create a position group."
+  defdelegate create_position_group(client, account_id, params), to: Positions
+
+  @doc "Update a position group."
+  defdelegate update_position_group(client, account_id, group_id, params), to: Positions
+
+  @doc "Delete a position group."
+  defdelegate delete_position_group(client, account_id, group_id), to: Positions
 
   # ========================================
   # Watchlist API
