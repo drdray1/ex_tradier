@@ -47,7 +47,7 @@ defmodule ExTradier.Client do
         headers: [{"accept", "application/json"}],
         retry: :transient,
         max_retries: 3,
-        retry_delay: fn attempt -> 500 * Integer.pow(2, attempt - 1) end
+        retry_delay: fn attempt -> 500 * Integer.pow(2, attempt) end
       ]
       |> maybe_add_plug(plug)
 
