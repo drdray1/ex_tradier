@@ -73,8 +73,28 @@ defmodule ExTradier.Streaming do
   end
 
   defmodule TimesaleEvent do
-    @moduledoc "Parsed timesale event from streaming API"
-    defstruct [:symbol, :exchange, :bid, :ask, :last, :size, :date]
+    @moduledoc """
+    Parsed timesale event from streaming API.
+
+    `cancel` and `correction` flag prints that the exchange later retracted or
+    amended — consumers computing volume or VWAP must exclude them. `session` is
+    `"pre"`, `"normal"` or `"post"`, and `seq` is the exchange sequence number,
+    which lets you detect gaps and out-of-order delivery.
+    """
+    defstruct [
+      :symbol,
+      :exchange,
+      :bid,
+      :ask,
+      :last,
+      :size,
+      :date,
+      :seq,
+      :flag,
+      :cancel,
+      :correction,
+      :session
+    ]
 
     @type t :: %__MODULE__{
             symbol: String.t(),
@@ -83,7 +103,70 @@ defmodule ExTradier.Streaming do
             ask: float() | nil,
             last: float() | nil,
             size: integer() | nil,
-            date: integer() | nil
+            date: integer() | nil,
+            seq: integer() | nil,
+            flag: String.t() | nil,
+            cancel: boolean() | nil,
+            correction: boolean() | nil,
+            session: String.t() | nil
+          }
+  end
+
+  defmodule OrderEvent do
+    @moduledoc """
+    Parsed order event from the account events stream.
+
+    `status` is one of `open`, `partially_filled`, `filled`, `expired`,
+    `canceled`, `pending`, `rejected`, `calculated`, `accepted_for_bidding`,
+    `error` or `held`. `parent_id` and `tag` are only present when applicable.
+    """
+    defstruct [
+      :id,
+      :account,
+      :status,
+      :type,
+      :price,
+      :stop_price,
+      :avg_fill_price,
+      :exec_quantity,
+      :last_fill_quantity,
+      :remaining_quantity,
+      :transaction_date,
+      :create_date,
+      :parent_id,
+      :tag
+    ]
+
+    @type t :: %__MODULE__{
+            id: integer() | nil,
+            account: String.t() | nil,
+            status: String.t() | nil,
+            type: String.t() | nil,
+            price: float() | nil,
+            stop_price: float() | nil,
+            avg_fill_price: float() | nil,
+            exec_quantity: float() | nil,
+            last_fill_quantity: float() | nil,
+            remaining_quantity: float() | nil,
+            transaction_date: DateTime.t() | nil,
+            create_date: DateTime.t() | nil,
+            parent_id: integer() | nil,
+            tag: String.t() | nil
+          }
+  end
+
+  defmodule HeartbeatEvent do
+    @moduledoc """
+    Parsed heartbeat event from the account events stream.
+
+    Tradier sends these periodically to keep the connection alive; treat a long
+    gap between heartbeats as a stalled stream.
+    """
+    defstruct [:status, :timestamp]
+
+    @type t :: %__MODULE__{
+            status: String.t() | nil,
+            timestamp: DateTime.t() | nil
           }
   end
 
@@ -311,7 +394,85 @@ defmodule ExTradier.Streaming do
       ask: parse_float(data["ask"]),
       last: parse_float(data["last"]),
       size: parse_int(data["size"]),
-      date: parse_int(data["date"])
+      date: parse_int(data["date"]),
+      seq: parse_int(data["seq"]),
+      flag: data["flag"],
+      cancel: parse_bool(data["cancel"]),
+      correction: parse_bool(data["correction"]),
+      session: data["session"]
+    }
+  end
+
+  @doc """
+  Parses a raw JSON message from the account events stream into a typed struct.
+
+  Account events are discriminated by an `"event"` key rather than the
+  `"type"` key used by market events.
+
+  ## Examples
+
+      iex> ExTradier.Streaming.parse_account_event(~s({"event":"heartbeat","status":"active"}))
+      {:ok, %ExTradier.Streaming.HeartbeatEvent{status: "active", timestamp: nil}}
+  """
+  @spec parse_account_event(String.t()) ::
+          {:ok, OrderEvent.t() | HeartbeatEvent.t()} | {:error, term()}
+  def parse_account_event(message) when is_binary(message) do
+    case Jason.decode(message) do
+      {:ok, data} -> parse_account_event_from_map(data)
+      {:error, _} -> {:error, :invalid_json}
+    end
+  end
+
+  @doc """
+  Parses an already-decoded account event map into a typed struct.
+  """
+  @spec parse_account_event_from_map(map()) ::
+          {:ok, OrderEvent.t() | HeartbeatEvent.t()} | {:error, term()}
+  def parse_account_event_from_map(%{"event" => "order"} = data) do
+    {:ok, parse_order_event(data)}
+  end
+
+  def parse_account_event_from_map(%{"event" => "heartbeat"} = data) do
+    {:ok, parse_heartbeat_event(data)}
+  end
+
+  def parse_account_event_from_map(%{"event" => event}) do
+    {:error, {:unknown_event_type, event}}
+  end
+
+  def parse_account_event_from_map(_), do: {:error, :missing_event}
+
+  @doc """
+  Parses an order event from a decoded JSON map.
+  """
+  @spec parse_order_event(map()) :: OrderEvent.t()
+  def parse_order_event(data) when is_map(data) do
+    %OrderEvent{
+      id: parse_int(data["id"]),
+      account: data["account"],
+      status: data["status"],
+      type: data["type"],
+      price: parse_float(data["price"]),
+      stop_price: parse_float(data["stop_price"]),
+      avg_fill_price: parse_float(data["avg_fill_price"]),
+      exec_quantity: parse_float(data["exec_quantity"]),
+      last_fill_quantity: parse_float(data["last_fill_quantity"]),
+      remaining_quantity: parse_float(data["remaining_quantity"]),
+      transaction_date: parse_datetime(data["transaction_date"]),
+      create_date: parse_datetime(data["create_date"]),
+      parent_id: parse_int(data["parent_id"]),
+      tag: data["tag"]
+    }
+  end
+
+  @doc """
+  Parses a heartbeat event from a decoded JSON map.
+  """
+  @spec parse_heartbeat_event(map()) :: HeartbeatEvent.t()
+  def parse_heartbeat_event(data) when is_map(data) do
+    %HeartbeatEvent{
+      status: data["status"],
+      timestamp: parse_datetime(data["timestamp"])
     }
   end
 
@@ -361,6 +522,20 @@ defmodule ExTradier.Streaming do
   end
 
   defp parse_int(_), do: nil
+
+  defp parse_bool(value) when is_boolean(value), do: value
+  defp parse_bool("true"), do: true
+  defp parse_bool("false"), do: false
+  defp parse_bool(_), do: nil
+
+  defp parse_datetime(value) when is_binary(value) do
+    case DateTime.from_iso8601(value) do
+      {:ok, datetime, _offset} -> datetime
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp parse_datetime(_), do: nil
 
   @doc """
   Builds WebSocket URL with session ID.
@@ -447,7 +622,12 @@ defmodule ExTradier.Streaming do
 
   @doc """
   Validates a streaming session by checking creation time.
+
+  Tradier exposes no endpoint for querying session state, so this is a purely
+  local check against `session_expiry_ms/0`.
   """
+  @spec validate_session(Session.t() | term()) ::
+          {:ok, :valid} | {:error, :expired | :invalid_session}
   def validate_session(%Session{} = session) do
     if session_expired?(session) do
       {:error, :expired}
@@ -457,9 +637,4 @@ defmodule ExTradier.Streaming do
   end
 
   def validate_session(_), do: {:error, :invalid_session}
-
-  @doc false
-  def validate_session(_client, session_id) do
-    {:ok, %{"session" => %{"id" => session_id, "active" => true}}}
-  end
 end

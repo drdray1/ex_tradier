@@ -16,7 +16,7 @@ defmodule ExTradier.Auth do
   Attaches Bearer token authentication to a Req request.
   """
   @spec attach(Req.Request.t(), String.t()) :: Req.Request.t()
-  def attach(request, api_token) do
+  def attach(%Req.Request{} = request, api_token) do
     request
     |> Req.Request.register_options([:tradier_api_token])
     |> Req.Request.merge_options(tradier_api_token: api_token)

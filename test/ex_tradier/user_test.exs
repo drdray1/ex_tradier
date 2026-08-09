@@ -1,7 +1,7 @@
 defmodule ExTradier.UserTest do
   use ExUnit.Case, async: true
 
-  alias ExTradier.{User, Fixtures}
+  alias ExTradier.{Fixtures, User}
 
   describe "get_profile/1" do
     test "returns user profile" do

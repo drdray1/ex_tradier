@@ -301,11 +301,13 @@ defmodule ExTradier.Streaming.HttpConnection do
   defp maybe_connect(%{status: :connected} = state), do: state
   defp maybe_connect(%{status: :connecting} = state), do: state
 
-  defp maybe_connect(%{subscribed_symbols: symbols} = state)
-       when map_size(symbols) == 0,
-       do: state
-
-  defp maybe_connect(state), do: do_connect(state)
+  defp maybe_connect(state) do
+    if MapSet.size(state.subscribed_symbols) == 0 do
+      state
+    else
+      do_connect(state)
+    end
+  end
 
   defp do_connect(state) do
     state = %{state | status: :connecting}

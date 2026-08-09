@@ -1,7 +1,7 @@
 defmodule ExTradier.MarketDataTest do
   use ExUnit.Case, async: true
 
-  alias ExTradier.{MarketData, Fixtures}
+  alias ExTradier.{Fixtures, MarketData}
 
   describe "get_quotes/2" do
     test "fetches quotes for a symbol" do

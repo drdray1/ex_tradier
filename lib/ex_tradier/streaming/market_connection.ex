@@ -20,8 +20,8 @@ defmodule ExTradier.Streaming.MarketConnection do
   require Logger
 
   alias ExTradier.Streaming
-  alias ExTradier.Streaming.Session
   alias ExTradier.Streaming.Client, as: StreamClient
+  alias ExTradier.Streaming.Session
 
   @default_filters ["quote", "trade", "summary"]
   @session_refresh_buffer_ms 60_000
@@ -306,10 +306,13 @@ defmodule ExTradier.Streaming.MarketConnection do
   defp maybe_connect(%{status: :connected} = state), do: state
   defp maybe_connect(%{status: :connecting} = state), do: state
 
-  defp maybe_connect(%{subscribed_symbols: symbols} = state) when map_size(symbols) == 0,
-    do: state
-
-  defp maybe_connect(state), do: do_connect(state)
+  defp maybe_connect(state) do
+    if MapSet.size(state.subscribed_symbols) == 0 do
+      state
+    else
+      do_connect(state)
+    end
+  end
 
   defp do_connect(state) do
     state = %{state | status: :connecting}

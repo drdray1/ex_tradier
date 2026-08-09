@@ -15,7 +15,11 @@ defmodule ExTradier.Streaming.AccountConnection do
       AccountConnection.add_subscriber(pid, self())
 
       # You'll receive messages like:
-      # {:account_event, %{type: "order_status", ...}}
+      # {:account_event, %ExTradier.Streaming.OrderEvent{status: "filled", ...}}
+      # {:account_event, %ExTradier.Streaming.HeartbeatEvent{status: "active", ...}}
+
+  Event types Tradier adds in the future arrive as the decoded map rather than a
+  struct, so subscribers should have a catch-all clause.
   """
 
   use GenServer
@@ -229,7 +233,7 @@ defmodule ExTradier.Streaming.AccountConnection do
   def handle_info({:stream_message, ws_pid, message}, %{websocket_pid: ws_pid} = state) do
     case Streaming.parse_event(message) do
       {:ok, event} ->
-        broadcast_event(state.subscribers, event)
+        broadcast_event(state.subscribers, typed_event(event))
 
       {:error, reason} ->
         Logger.debug("[AccountConnection] Failed to parse message: #{inspect(reason)}")
@@ -342,6 +346,15 @@ defmodule ExTradier.Streaming.AccountConnection do
       {:error, reason} ->
         Logger.error("[AccountConnection] Failed to connect WebSocket: #{inspect(reason)}")
         schedule_reconnect(%{state | status: :disconnected})
+    end
+  end
+
+  # Known account events are delivered as structs; anything else is passed
+  # through as the decoded map so new Tradier event types are not dropped.
+  defp typed_event(data) do
+    case Streaming.parse_account_event_from_map(data) do
+      {:ok, event} -> event
+      {:error, _reason} -> data
     end
   end
 

@@ -2,9 +2,9 @@ defmodule ExTradier.Streaming.HttpConnectionTest do
   use ExUnit.Case, async: false
   use Mimic
 
+  alias ExTradier.Fixtures
   alias ExTradier.Streaming.HttpConnection
   alias ExTradier.Streaming.Session
-  alias ExTradier.Fixtures
 
   setup :set_mimic_global
   setup :verify_on_exit!
