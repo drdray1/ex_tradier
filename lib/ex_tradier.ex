@@ -35,6 +35,7 @@ defmodule ExTradier do
   alias ExTradier.{
     Client,
     MarketData,
+    OAuth,
     Positions,
     Streaming,
     Trading,
@@ -68,6 +69,20 @@ defmodule ExTradier do
   defdelegate healthcheck(client), to: Client
 
   # ========================================
+  # OAuth
+  # ========================================
+
+  @doc "Builds the OAuth authorization URL to redirect a user to."
+  defdelegate authorize_url(client_id, opts \\ []), to: OAuth
+
+  @doc "Exchanges an OAuth authorization code for an access token."
+  defdelegate create_access_token(client_id, client_secret, code, opts \\ []), to: OAuth
+
+  @doc "Exchanges an OAuth refresh token for a new access token."
+  defdelegate refresh_access_token(client_id, client_secret, refresh_token, opts \\ []),
+    to: OAuth
+
+  # ========================================
   # User/Account API
   # ========================================
 
@@ -99,12 +114,12 @@ defmodule ExTradier do
   @doc """
   Get quote for a single symbol.
   """
-  def get_quote(client, symbol) when is_binary(symbol) do
-    MarketData.get_quotes(client, symbol)
+  def get_quote(client, symbol, params \\ %{}) when is_binary(symbol) do
+    MarketData.get_quotes(client, symbol, params)
   end
 
-  @doc "Get quotes for multiple symbols."
-  defdelegate get_quotes(client, symbols), to: MarketData
+  @doc "Get quotes for one or more symbols."
+  defdelegate get_quotes(client, symbols, params \\ %{}), to: MarketData
 
   @doc "Get historical pricing data."
   defdelegate get_historical(client, symbol, params \\ %{}), to: MarketData
@@ -116,34 +131,35 @@ defmodule ExTradier do
   defdelegate get_option_chains(client, symbol, params \\ %{}), to: MarketData
 
   @doc "Get option strikes."
-  defdelegate get_option_strikes(client, symbol, expiration), to: MarketData
+  defdelegate get_option_strikes(client, symbol, expiration, params \\ %{}), to: MarketData
 
   @doc "Get option expirations."
-  defdelegate get_option_expirations(client, symbol), to: MarketData
+  defdelegate get_option_expirations(client, symbol, params \\ %{}), to: MarketData
 
   @doc "Lookup option symbols for an underlying."
   defdelegate lookup_option_symbols(client, symbol, params \\ %{}), to: MarketData
 
   @doc "Get real-time Greeks for an option chain."
+  @doc deprecated: "Use get_option_chains_with_greeks/3 instead"
   defdelegate get_option_greeks(client, symbol, expiration, params \\ %{}), to: MarketData
 
   @doc "Get option chains with Greeks included."
   defdelegate get_option_chains_with_greeks(client, symbol, params \\ %{}), to: MarketData
 
   @doc "Get quotes via POST for large symbol lists."
-  defdelegate post_quotes(client, symbols), to: MarketData
+  defdelegate post_quotes(client, symbols, params \\ %{}), to: MarketData
 
-  @doc "Search for symbols."
-  defdelegate search_symbols(client, query), to: MarketData
+  @doc "Search for securities by company name."
+  defdelegate search_symbols(client, query, params \\ %{}), to: MarketData
 
   @doc "Lookup symbol information."
-  defdelegate lookup_symbol(client, symbol), to: MarketData
+  defdelegate lookup_symbol(client, symbol, params \\ %{}), to: MarketData
 
   @doc "Get market calendar."
   defdelegate get_calendar(client, params \\ %{}), to: MarketData
 
   @doc "Get market clock."
-  defdelegate get_clock(client), to: MarketData
+  defdelegate get_clock(client, params \\ %{}), to: MarketData
 
   @doc "Get ETB (Easy to Borrow) list."
   defdelegate get_etb_list(client), to: MarketData
@@ -199,7 +215,7 @@ defmodule ExTradier do
   defdelegate get_orders(client, account_id, params \\ %{}), to: Trading
 
   @doc "Get a specific order."
-  defdelegate get_order(client, account_id, order_id), to: Trading
+  defdelegate get_order(client, account_id, order_id, params \\ %{}), to: Trading
 
   # ========================================
   # Streaming API
@@ -221,8 +237,11 @@ defmodule ExTradier do
   @doc "Build WebSocket URL with session ID."
   defdelegate build_stream_url(session_id, type), to: Streaming, as: :build_websocket_url
 
-  @doc "Parse a typed streaming event."
+  @doc "Parse a typed market streaming event."
   defdelegate parse_typed_event(message), to: Streaming
+
+  @doc "Parse a typed account streaming event."
+  defdelegate parse_account_event(message), to: Streaming
 
   # ========================================
   # Streaming Connection Management
@@ -301,8 +320,11 @@ defmodule ExTradier do
   @doc "Returns list of valid option order sides."
   defdelegate valid_option_sides(), to: Trading
 
-  @doc "Returns list of valid order types."
+  @doc "Returns list of valid single-leg order types."
   defdelegate valid_order_types(), to: Trading
+
+  @doc "Returns list of valid multi-leg and combo order types."
+  defdelegate valid_multileg_types(), to: Trading
 
   @doc "Returns list of valid order durations."
   defdelegate valid_durations(), to: Trading

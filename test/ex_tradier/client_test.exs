@@ -359,12 +359,13 @@ defmodule ExTradier.ClientTest do
       assert Client.extract_rate_limit("invalid") == nil
     end
 
-    test "returns nil for partial headers" do
+    test "returns the fields present when Tradier sends only some headers" do
       headers = %{
         "x-ratelimit-available" => ["119"]
       }
 
-      assert Client.extract_rate_limit(headers) == nil
+      assert Client.extract_rate_limit(headers) ==
+               %{allowed: nil, available: 119, expiry: nil, used: nil}
     end
   end
 

@@ -1,7 +1,7 @@
 defmodule ExTradier.PositionsTest do
   use ExUnit.Case, async: true
 
-  alias ExTradier.{Positions, Fixtures}
+  alias ExTradier.{Fixtures, Positions}
 
   describe "get_position_groups/2" do
     test "returns all position groups" do

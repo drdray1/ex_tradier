@@ -5,10 +5,14 @@ defmodule ExTradier.Trading do
 
   alias ExTradier.Client
 
+  @type params :: map() | keyword()
+
   # Valid order parameters
   @valid_equity_sides ~w(buy sell buy_to_cover sell_short)
   @valid_option_sides ~w(buy_to_open buy_to_close sell_to_open sell_to_close)
   @valid_order_types ~w(market limit stop stop_limit)
+  # Multileg and combo orders are priced as a net debit/credit rather than per leg
+  @valid_multileg_types ~w(market debit credit even)
   @valid_durations ~w(day gtc pre post)
   @valid_order_classes ~w(equity option multileg combo oto oco otoco)
 
@@ -31,34 +35,38 @@ defmodule ExTradier.Trading do
       ...> })
       {:ok, %{"order" => %{"id" => 123456, "status" => "ok"}}}
   """
+  @spec place_equity_order(Client.client(), String.t(), params()) :: Client.response()
   def place_equity_order(client, account_id, params) do
-    form_params =
-      params
-      |> Enum.map(fn {k, v} -> {to_string(k), to_string(v)} end)
-
-    Req.post(client, url: "/accounts/#{account_id}/orders", form: form_params)
+    Req.post(client, url: "/accounts/#{account_id}/orders", form: Client.to_form(params))
     |> Client.handle_response()
   end
 
   @doc """
   Place an option order.
   """
+  @spec place_option_order(Client.client(), String.t(), params()) :: Client.response()
   def place_option_order(client, account_id, params) do
-    place_equity_order(client, account_id, Map.put(params, :class, "option"))
+    Req.post(client,
+      url: "/accounts/#{account_id}/orders",
+      form: Client.to_form(params, class: "option")
+    )
+    |> Client.handle_response()
   end
 
   @doc """
   Place a multi-leg option order (spreads, combos).
-  """
-  def place_multileg_order(client, account_id, params) do
-    formatted_params =
-      params
-      |> Map.put(:class, "multileg")
-      |> format_multileg_params()
 
+  Legs may be given as a `:legs` list of maps with `:option_symbol`, `:side` and
+  `:quantity`, which are expanded into Tradier's indexed `option_symbol[n]`
+  form fields.
+  """
+  @spec place_multileg_order(Client.client(), String.t(), params()) :: Client.response()
+  def place_multileg_order(client, account_id, params) do
     form_params =
-      formatted_params
-      |> Enum.map(fn {k, v} -> {to_string(k), to_string(v)} end)
+      params
+      |> Map.new()
+      |> format_multileg_params()
+      |> Client.to_form(class: "multileg")
 
     Req.post(client, url: "/accounts/#{account_id}/orders", form: form_params)
     |> Client.handle_response()
@@ -82,34 +90,39 @@ defmodule ExTradier.Trading do
     |> Map.merge(legs_params)
   end
 
-  @doc """
-  Place a combo order.
-  """
-  def place_combo_order(client, account_id, params) do
-    form_params =
-      params
-      |> Map.put(:class, "combo")
-      |> Enum.map(fn {k, v} -> {to_string(k), to_string(v)} end)
+  defp format_multileg_params(params), do: params
 
-    Req.post(client, url: "/accounts/#{account_id}/orders", form: form_params)
+  @doc """
+  Place a combo order (an equity leg plus up to two option legs).
+  """
+  @spec place_combo_order(Client.client(), String.t(), params()) :: Client.response()
+  def place_combo_order(client, account_id, params) do
+    Req.post(client,
+      url: "/accounts/#{account_id}/orders",
+      form: Client.to_form(params, class: "combo")
+    )
     |> Client.handle_response()
   end
 
   @doc """
   Modify an existing order.
-  """
-  def modify_order(client, account_id, order_id, params) do
-    form_params =
-      params
-      |> Enum.map(fn {k, v} -> {to_string(k), to_string(v)} end)
 
-    Req.put(client, url: "/accounts/#{account_id}/orders/#{order_id}", form: form_params)
+  Only `:type`, `:duration`, `:price` and `:stop` may be changed.
+  """
+  @spec modify_order(Client.client(), String.t(), String.t() | integer(), params()) ::
+          Client.response()
+  def modify_order(client, account_id, order_id, params) do
+    Req.put(client,
+      url: "/accounts/#{account_id}/orders/#{order_id}",
+      form: Client.to_form(params)
+    )
     |> Client.handle_response()
   end
 
   @doc """
   Cancel an order.
   """
+  @spec cancel_order(Client.client(), String.t(), String.t() | integer()) :: Client.response()
   def cancel_order(client, account_id, order_id) do
     Req.delete(client, url: "/accounts/#{account_id}/orders/#{order_id}")
     |> Client.handle_response()
@@ -117,70 +130,88 @@ defmodule ExTradier.Trading do
 
   @doc """
   Get list of orders.
+
+  ## Options
+
+    - `:page` - Page number, 1-based (default: `1`)
+    - `:limit` - Orders per page (default: `25`)
+    - `:status` - Comma-separated statuses to filter by, e.g. `"open,filled"`
+    - `:includeTags` - Include user-defined order tags (default: `false`)
+
+  The response includes `"page"`, `"total_pages"` and `"total_orders"` alongside
+  the order list.
   """
+  @spec get_orders(Client.client(), String.t(), params()) :: Client.response()
   def get_orders(client, account_id, params \\ %{}) do
-    Req.get(client, url: "/accounts/#{account_id}/orders", params: Map.to_list(params))
+    Req.get(client, url: "/accounts/#{account_id}/orders", params: Client.to_params(params))
     |> Client.handle_response()
   end
 
   @doc """
   Get a specific order by ID.
+
+  ## Options
+
+    - `:includeTags` - Include the user-defined order tag (default: `false`)
   """
-  def get_order(client, account_id, order_id) do
-    Req.get(client, url: "/accounts/#{account_id}/orders/#{order_id}")
+  @spec get_order(Client.client(), String.t(), String.t() | integer(), params()) ::
+          Client.response()
+  def get_order(client, account_id, order_id, params \\ %{}) do
+    Req.get(client,
+      url: "/accounts/#{account_id}/orders/#{order_id}",
+      params: Client.to_params(params)
+    )
     |> Client.handle_response()
   end
 
   @doc """
   Preview an order before placing it.
+
+  Returns Tradier's estimated cost, commission, fees and margin impact without
+  submitting the order.
   """
+  @spec preview_order(Client.client(), String.t(), params()) :: Client.response()
   def preview_order(client, account_id, params) do
-    params = Map.put(params, :preview, true)
-
-    form_params =
-      params
-      |> Enum.map(fn {k, v} -> {to_string(k), to_string(v)} end)
-
-    Req.post(client, url: "/accounts/#{account_id}/orders", form: form_params)
+    Req.post(client,
+      url: "/accounts/#{account_id}/orders",
+      form: Client.to_form(params, preview: true)
+    )
     |> Client.handle_response()
   end
 
   @doc """
   Place an OTO (One-Triggers-Other) order.
   """
+  @spec place_oto_order(Client.client(), String.t(), params()) :: Client.response()
   def place_oto_order(client, account_id, params) do
-    form_params =
-      params
-      |> Map.put(:class, "oto")
-      |> Enum.map(fn {k, v} -> {to_string(k), to_string(v)} end)
-
-    Req.post(client, url: "/accounts/#{account_id}/orders", form: form_params)
+    Req.post(client,
+      url: "/accounts/#{account_id}/orders",
+      form: Client.to_form(params, class: "oto")
+    )
     |> Client.handle_response()
   end
 
   @doc """
   Place an OCO (One-Cancels-Other) order.
   """
+  @spec place_oco_order(Client.client(), String.t(), params()) :: Client.response()
   def place_oco_order(client, account_id, params) do
-    form_params =
-      params
-      |> Map.put(:class, "oco")
-      |> Enum.map(fn {k, v} -> {to_string(k), to_string(v)} end)
-
-    Req.post(client, url: "/accounts/#{account_id}/orders", form: form_params)
+    Req.post(client,
+      url: "/accounts/#{account_id}/orders",
+      form: Client.to_form(params, class: "oco")
+    )
     |> Client.handle_response()
   end
 
   @doc """
   Place an OTOCO (One-Triggers-OCO) order.
   """
+  @spec place_otoco_order(Client.client(), String.t(), params()) :: Client.response()
   def place_otoco_order(client, account_id, params) do
-    form_params =
-      params
-      |> Map.put(:class, "otoco")
-      |> Enum.map(fn {k, v} -> {to_string(k), to_string(v)} end)
-
-    Req.post(client, url: "/accounts/#{account_id}/orders", form: form_params)
+    Req.post(client,
+      url: "/accounts/#{account_id}/orders",
+      form: Client.to_form(params, class: "otoco")
+    )
     |> Client.handle_response()
   end
 
@@ -277,6 +308,10 @@ defmodule ExTradier.Trading do
 
   @doc """
   Validates multi-leg order parameters.
+
+  Multi-leg orders are priced as a net amount across the spread, so `:type` must
+  be one of `#{Enum.join(@valid_multileg_types, ", ")}` — not the single-leg
+  `limit`/`stop` types — and `:price` is required for `debit` and `credit`.
   """
   def validate_multileg_order(params) when is_map(params) do
     errors =
@@ -286,9 +321,9 @@ defmodule ExTradier.Trading do
       |> validate_required_field(params, :duration, "duration is required")
       |> validate_required_field(params, :legs, "legs are required")
       |> validate_legs(params)
-      |> validate_order_type(params)
+      |> validate_multileg_type(params)
       |> validate_duration(params)
-      |> validate_price_for_limit_orders(params)
+      |> validate_price_for_multileg_orders(params)
       |> validate_tag(params)
 
     if Enum.empty?(errors) do
@@ -402,11 +437,29 @@ defmodule ExTradier.Trading do
     end
   end
 
+  defp validate_multileg_type(errors, params) do
+    type = get_field(params, :type) |> to_string()
+
+    if type in @valid_multileg_types do
+      errors
+    else
+      ["type must be one of: #{Enum.join(@valid_multileg_types, ", ")}" | errors]
+    end
+  end
+
   defp validate_price_for_limit_orders(errors, params) do
+    validate_price_required_for(errors, params, ["limit", "stop_limit"])
+  end
+
+  defp validate_price_for_multileg_orders(errors, params) do
+    validate_price_required_for(errors, params, ["debit", "credit"])
+  end
+
+  defp validate_price_required_for(errors, params, types) do
     type = get_field(params, :type) |> to_string()
     price = get_field(params, :price)
 
-    if type in ["limit", "stop_limit"] do
+    if type in types do
       cond do
         is_nil(price) -> ["price is required for #{type} orders" | errors]
         is_number(price) and price > 0 -> errors
@@ -581,8 +634,11 @@ defmodule ExTradier.Trading do
   @doc "Returns list of valid option order sides"
   def valid_option_sides, do: @valid_option_sides
 
-  @doc "Returns list of valid order types"
+  @doc "Returns list of valid single-leg order types"
   def valid_order_types, do: @valid_order_types
+
+  @doc "Returns list of valid multi-leg and combo order types"
+  def valid_multileg_types, do: @valid_multileg_types
 
   @doc "Returns list of valid order durations"
   def valid_durations, do: @valid_durations

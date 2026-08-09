@@ -1,7 +1,7 @@
 defmodule ExTradier.TradingTest do
   use ExUnit.Case, async: true
 
-  alias ExTradier.{Trading, Fixtures}
+  alias ExTradier.{Fixtures, Trading}
 
   describe "place_equity_order/3" do
     test "places an equity order" do

@@ -536,7 +536,57 @@ defmodule ExTradier.Fixtures do
       "ask" => "150.30",
       "last" => "150.25",
       "size" => "100",
-      "date" => "1705084800000"
+      "date" => "1705084800000",
+      "seq" => 352_795,
+      "flag" => "",
+      "cancel" => false,
+      "correction" => false,
+      "session" => "normal"
+    }
+  end
+
+  # ============================================================================
+  # Account streaming event fixtures
+  # ============================================================================
+
+  def order_event do
+    %{
+      "id" => 1_107_075,
+      "event" => "order",
+      "status" => "open",
+      "type" => "limit",
+      "price" => 10.0,
+      "stop_price" => 0.0,
+      "avg_fill_price" => 0.0,
+      "exec_quantity" => 0.0,
+      "last_fill_quantity" => 0.0,
+      "remaining_quantity" => 2.0,
+      "transaction_date" => "2025-12-09T12:05:35.277Z",
+      "create_date" => "2025-12-09T12:05:35.277Z",
+      "account" => "6YA"
+    }
+  end
+
+  def heartbeat_event do
+    %{
+      "event" => "heartbeat",
+      "status" => "active",
+      "timestamp" => "2025-12-10T18:02:51.028929606Z"
+    }
+  end
+
+  # ============================================================================
+  # OAuth responses
+  # ============================================================================
+
+  def access_token_response do
+    %{
+      "access_token" => "MTIzNDU2Nzg5",
+      "expires_in" => 86_399,
+      "issued_at" => "2026-08-09T12:00:00.000Z",
+      "scope" => "read write market trade stream",
+      "refresh_token" => "cmVmcmVzaC10b2tlbg",
+      "status" => "approved"
     }
   end
 

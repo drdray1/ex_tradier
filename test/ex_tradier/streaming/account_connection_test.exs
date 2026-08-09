@@ -2,9 +2,9 @@ defmodule ExTradier.Streaming.AccountConnectionTest do
   use ExUnit.Case, async: false
   use Mimic
 
+  alias ExTradier.Fixtures
   alias ExTradier.Streaming.AccountConnection
   alias ExTradier.Streaming.Session
-  alias ExTradier.Fixtures
 
   setup :set_mimic_global
   setup :verify_on_exit!
@@ -164,6 +164,59 @@ defmodule ExTradier.Streaming.AccountConnectionTest do
       send(pid, {:stream_message, ws_pid, ~s({"type":"order","status":"filled"})})
 
       assert_receive {:account_event, %{"type" => "order", "status" => "filled"}}, 500
+    end
+
+    test "broadcasts order events as typed structs" do
+      stub_connection_flow()
+
+      stub(ExTradier.Streaming, :parse_event, fn _msg -> {:ok, Fixtures.order_event()} end)
+
+      {:ok, pid} = start_connection()
+      AccountConnection.add_subscriber(pid, self())
+      AccountConnection.connect(pid)
+      Process.sleep(100)
+
+      send(pid, {:stream_message, get_ws_pid(pid), "ignored, parse_event is stubbed"})
+
+      assert_receive {:account_event,
+                      %ExTradier.Streaming.OrderEvent{
+                        id: 1_107_075,
+                        status: "open",
+                        account: "6YA"
+                      }},
+                     500
+    end
+
+    test "broadcasts heartbeat events as typed structs" do
+      stub_connection_flow()
+
+      stub(ExTradier.Streaming, :parse_event, fn _msg -> {:ok, Fixtures.heartbeat_event()} end)
+
+      {:ok, pid} = start_connection()
+      AccountConnection.add_subscriber(pid, self())
+      AccountConnection.connect(pid)
+      Process.sleep(100)
+
+      send(pid, {:stream_message, get_ws_pid(pid), "ignored, parse_event is stubbed"})
+
+      assert_receive {:account_event, %ExTradier.Streaming.HeartbeatEvent{status: "active"}}, 500
+    end
+
+    test "passes unrecognized events through as raw maps" do
+      stub_connection_flow()
+
+      stub(ExTradier.Streaming, :parse_event, fn _msg ->
+        {:ok, %{"event" => "something_new", "detail" => 1}}
+      end)
+
+      {:ok, pid} = start_connection()
+      AccountConnection.add_subscriber(pid, self())
+      AccountConnection.connect(pid)
+      Process.sleep(100)
+
+      send(pid, {:stream_message, get_ws_pid(pid), "ignored, parse_event is stubbed"})
+
+      assert_receive {:account_event, %{"event" => "something_new", "detail" => 1}}, 500
     end
 
     test "handles parse errors gracefully" do

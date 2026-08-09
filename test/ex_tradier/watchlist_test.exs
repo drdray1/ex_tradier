@@ -1,7 +1,7 @@
 defmodule ExTradier.WatchlistTest do
   use ExUnit.Case, async: true
 
-  alias ExTradier.{Watchlist, Fixtures}
+  alias ExTradier.{Fixtures, Watchlist}
 
   describe "get_watchlists/1" do
     test "returns all watchlists" do

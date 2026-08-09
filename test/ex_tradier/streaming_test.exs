@@ -1,9 +1,9 @@
 defmodule ExTradier.StreamingTest do
   use ExUnit.Case, async: true
 
-  alias ExTradier.Streaming
-  alias ExTradier.Streaming.{QuoteEvent, TradeEvent, SummaryEvent, TimesaleEvent, Session}
   alias ExTradier.Fixtures
+  alias ExTradier.Streaming
+  alias ExTradier.Streaming.{QuoteEvent, Session, SummaryEvent, TimesaleEvent, TradeEvent}
 
   describe "create_market_session/2" do
     test "creates a market streaming session" do
@@ -381,13 +381,6 @@ defmodule ExTradier.StreamingTest do
 
     test "returns error for invalid input" do
       assert {:error, :invalid_session} = Streaming.validate_session("not a session")
-    end
-  end
-
-  describe "validate_session/2" do
-    test "returns ok tuple with session info" do
-      assert {:ok, %{"session" => %{"id" => "abc", "active" => true}}} =
-               Streaming.validate_session(nil, "abc")
     end
   end
 

@@ -1,7 +1,7 @@
 defmodule ExTradier.MixProject do
   use Mix.Project
 
-  @version "0.1.2"
+  @version "0.2.0"
   @source_url "https://github.com/drdray1/ex_tradier"
 
   def project do
@@ -45,14 +45,14 @@ defmodule ExTradier.MixProject do
 
   defp deps do
     [
-      {:req, "~> 0.5"},
+      {:req, "~> 0.7"},
       {:jason, "~> 1.4"},
-      {:decimal, "~> 2.0 or ~> 3.0"},
+      {:telemetry, "~> 1.0"},
       {:websockex, "~> 0.4"},
       {:plug, "~> 1.14", only: :test},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:mimic, "~> 1.7", only: :test}
+      {:mimic, "~> 2.3", only: :test}
     ]
   end
 
@@ -60,32 +60,36 @@ defmodule ExTradier.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
-      files: ~w(lib .formatter.exs mix.exs README.md LICENSE)
+      files: ~w(lib .formatter.exs mix.exs README.md CHANGELOG.md LICENSE)
     ]
   end
 
   defp docs do
     [
       main: "ExTradier",
-      extras: ["README.md"],
+      extras: ["README.md", "CHANGELOG.md", {"LICENSE", [title: "License"]}],
       groups_for_modules: [
         "REST API": [
           ExTradier.User,
           ExTradier.MarketData,
           ExTradier.Trading,
-          ExTradier.Watchlist
+          ExTradier.Watchlist,
+          ExTradier.Positions
         ],
         Authentication: [
-          ExTradier.Auth
+          ExTradier.Auth,
+          ExTradier.OAuth
         ],
         Streaming: [
           ExTradier.Streaming,
           ExTradier.Streaming.Client,
+          ExTradier.Streaming.HttpConnection,
           ExTradier.Streaming.MarketConnection,
           ExTradier.Streaming.AccountConnection
         ],
         Client: [
-          ExTradier.Client
+          ExTradier.Client,
+          ExTradier.Telemetry
         ]
       ]
     ]
