@@ -13,7 +13,7 @@ Add `ex_tradier` to your dependencies:
 ```elixir
 def deps do
   [
-    {:ex_tradier, git: "https://github.com/drdray1/ex_tradier.git", tag: "0.2.0"}
+    {:ex_tradier, git: "https://github.com/drdray1/ex_tradier.git", tag: "0.2.1"}
   ]
 end
 ```
